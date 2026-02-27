@@ -1,0 +1,689 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no"/>
+  <title>CE Strike 3D</title>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Rajdhani:wght@600;700&family=Share+Tech+Mono&display=swap');
+
+    :root {
+      --c1: #00e5ff;
+      --c2: #ff6b35;
+      --c3: #b5ff4d;
+      --dark: #060810;
+      --panel: rgba(6,8,16,0.92);
+    }
+
+    * { margin:0; padding:0; box-sizing:border-box; }
+    body { background:#000; color:#fff; font-family:'Rajdhani',sans-serif; overflow:hidden; user-select:none; }
+
+    /* ── LOBBY ── */
+    #lobby {
+      position:fixed; inset:0;
+      background: radial-gradient(ellipse at 50% 40%, #0a1628 0%, #060810 70%);
+      display:flex; flex-direction:column; align-items:center; justify-content:center;
+      z-index:100;
+    }
+
+    .lobby-grid-bg {
+      position:absolute; inset:0;
+      background-image:
+        linear-gradient(rgba(0,229,255,0.04) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(0,229,255,0.04) 1px, transparent 1px);
+      background-size: 50px 50px;
+      animation: gridMove 12s linear infinite;
+    }
+    @keyframes gridMove { from{background-position:0 0} to{background-position:50px 50px} }
+
+    #lobby-inner { position:relative; z-index:2; display:flex; flex-direction:column; align-items:center; width:100%; max-width:860px; padding:20px; }
+
+    .logo {
+      font-family:'Rajdhani',sans-serif; font-weight:700;
+      font-size: clamp(36px,7vw,72px);
+      letter-spacing:10px;
+      background: linear-gradient(135deg, #fff 20%, var(--c1) 60%, var(--c2) 100%);
+      -webkit-background-clip:text; -webkit-text-fill-color:transparent; background-clip:text;
+      filter: drop-shadow(0 0 30px rgba(0,229,255,0.4));
+      animation: logoPulse 3s ease-in-out infinite;
+    }
+    @keyframes logoPulse {
+      0%,100%{ filter: drop-shadow(0 0 20px rgba(0,229,255,0.3)); }
+      50%    { filter: drop-shadow(0 0 50px rgba(0,229,255,0.7)); }
+    }
+    .logo-sub { font-size:12px; color:var(--c2); letter-spacing:6px; margin-bottom:36px; font-family:'Share Tech Mono',monospace; }
+
+    #name-input {
+      background: rgba(0,229,255,0.05);
+      border: 1px solid rgba(0,229,255,0.4);
+      color:#fff; font-family:'Share Tech Mono',monospace; font-size:16px;
+      padding:12px 24px; margin-bottom:24px;
+      outline:none; width:min(400px,90vw); text-align:center;
+      transition:all .2s;
+    }
+    #name-input:focus { border-color:var(--c1); background:rgba(0,229,255,0.08); box-shadow:0 0 20px rgba(0,229,255,0.2); }
+
+    /* Character grid */
+    .char-grid {
+      display:grid; grid-template-columns:repeat(5,1fr); gap:12px;
+      width:100%; margin-bottom:28px;
+    }
+    @media(max-width:600px) { .char-grid { grid-template-columns:repeat(3,1fr); } }
+
+    .char-card {
+      cursor:pointer; border:1px solid #1a2040; padding:14px 8px 12px;
+      text-align:center; background:rgba(255,255,255,0.02);
+      transition:all .15s; position:relative; overflow:hidden;
+    }
+    .char-card::before {
+      content:''; position:absolute; inset:0;
+      background:linear-gradient(135deg,transparent 60%,rgba(255,255,255,0.03));
+    }
+    .char-card:hover { transform:translateY(-3px); border-color:#2a3060; box-shadow:0 8px 30px rgba(0,0,0,0.5); }
+    .char-card.selected { border-color:var(--c1); background:rgba(0,229,255,0.07); box-shadow:0 0 20px rgba(0,229,255,0.2),inset 0 0 20px rgba(0,229,255,0.04); }
+
+    .char-swatch { width:44px; height:44px; margin:0 auto 10px; border-radius:3px; position:relative; }
+    .char-swatch::after { content:''; position:absolute; inset:0; background:linear-gradient(135deg,rgba(255,255,255,0.3),transparent); border-radius:3px; }
+
+    .char-name { font-size:11px; font-weight:700; letter-spacing:1px; margin-bottom:4px; }
+    .char-role { font-size:10px; color:#666; margin-bottom:10px; font-family:'Share Tech Mono',monospace; }
+
+    .stat-row { display:flex; align-items:center; gap:5px; margin-bottom:3px; }
+    .stat-lbl { font-size:9px; color:#555; width:24px; font-family:'Share Tech Mono',monospace; }
+    .stat-bg  { flex:1; height:4px; background:#0a0c18; border-radius:2px; overflow:hidden; }
+    .stat-fill{ height:100%; border-radius:2px; }
+
+    #btn-play {
+      background:linear-gradient(135deg, var(--c1), #0088aa);
+      color:#000; border:none; font-family:'Rajdhani',sans-serif; font-weight:700;
+      font-size:18px; padding:14px 56px; cursor:pointer; letter-spacing:3px;
+      clip-path:polygon(12px 0%,100% 0%,calc(100% - 12px) 100%,0% 100%);
+      transition:all .15s;
+    }
+    #btn-play:hover { background:linear-gradient(135deg, var(--c2), #aa3300); transform:scale(1.04); }
+    #btn-play:disabled { background:#1a2030; color:#333; cursor:not-allowed; transform:none; }
+
+    /* ── GAME CANVAS ── */
+    #cvs { display:none; position:fixed; inset:0; width:100%; height:100%; }
+
+    /* ── CROSSHAIR ── */
+    #crosshair {
+      display:none; position:fixed;
+      top:50%; left:50%; transform:translate(-50%,-50%);
+      width:20px; height:20px; pointer-events:none; z-index:20;
+    }
+    #crosshair::before, #crosshair::after {
+      content:''; position:absolute; background:rgba(255,255,255,0.85);
+    }
+    #crosshair::before { width:2px; height:100%; left:50%; transform:translateX(-50%); }
+    #crosshair::after  { width:100%; height:2px; top:50%; transform:translateY(-50%); }
+    .ch-dot {
+      position:absolute; width:3px; height:3px; background:#fff; border-radius:50%;
+      top:50%; left:50%; transform:translate(-50%,-50%); opacity:0.9;
+    }
+
+    /* ── HUD ── */
+    #hud { display:none; position:fixed; inset:0; pointer-events:none; z-index:15; font-family:'Share Tech Mono',monospace; }
+
+    /* Health & ammo bottom-left */
+    #hud-bl {
+      position:absolute; bottom:20px; left:20px;
+      background: linear-gradient(135deg, rgba(6,8,16,0.95), rgba(10,14,28,0.9));
+      border:1px solid rgba(0,229,255,0.2); border-left:3px solid var(--c1);
+      padding:14px 18px; min-width:220px;
+    }
+    .hud-lbl { font-size:9px; color:#444; letter-spacing:2px; margin-bottom:4px; }
+    #hp-bar { width:180px; height:10px; background:#0a0c18; border:1px solid #1a2040; margin-bottom:3px; position:relative; overflow:hidden; }
+    #hp-fill { height:100%; transition:width .12s,background .3s; }
+    #hp-fill::after { content:''; position:absolute; top:0;left:0;right:0;height:40%; background:rgba(255,255,255,0.2); }
+    #hp-val  { font-size:22px; font-weight:700; margin-bottom:8px; font-family:'Rajdhani',sans-serif; }
+    #ammo-val{ font-size:28px; font-weight:700; font-family:'Rajdhani',sans-serif; color:var(--c1); }
+    #ammo-max{ font-size:11px; color:#444; }
+    #weapon-name { font-size:10px; color:#888; margin-top:4px; letter-spacing:2px; }
+
+    /* Kill counter top-left */
+    #kills-display {
+      position:absolute; top:16px; left:16px;
+      background:rgba(6,8,16,0.9); border:1px solid rgba(255,107,53,0.3);
+      border-left:3px solid var(--c2); padding:10px 16px;
+    }
+    #kills-val { font-size:32px; font-weight:700; color:var(--c2); font-family:'Rajdhani',sans-serif; line-height:1; }
+    #kills-lbl { font-size:9px; color:#555; letter-spacing:2px; }
+    #kills-goal{ font-size:9px; color:#333; }
+
+    /* Scoreboard top-right */
+    #scoreboard {
+      position:absolute; top:16px; right:16px;
+      background:rgba(6,8,16,0.92); border:1px solid rgba(0,229,255,0.15);
+      border-right:3px solid var(--c1); padding:12px 16px; min-width:220px;
+    }
+    #scoreboard h3 { font-size:10px; color:var(--c1); letter-spacing:3px; margin-bottom:10px; font-family:'Rajdhani',sans-serif; }
+    .sb-row { display:flex; justify-content:space-between; align-items:center; margin-bottom:6px; gap:8px; }
+    .sb-dot  { width:8px; height:8px; flex-shrink:0; }
+    .sb-name { font-size:11px; flex:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+    .sb-kills{ font-size:14px; font-weight:700; color:var(--c2); font-family:'Rajdhani',sans-serif; }
+
+    /* Kill feed */
+    #kill-feed {
+      position:absolute; top:16px; left:50%; transform:translateX(-50%);
+      display:flex; flex-direction:column; align-items:center; gap:4px;
+      max-width:320px;
+    }
+    .kf-entry {
+      background:rgba(6,8,16,0.92); border:1px solid #1a2040; border-left:3px solid;
+      padding:6px 14px; font-size:11px; white-space:nowrap;
+      animation: kfIn 3s forwards;
+    }
+    @keyframes kfIn {
+      0%  { opacity:0; transform:translateY(-8px) }
+      10% { opacity:1; transform:translateY(0) }
+      70% { opacity:1 }
+      100%{ opacity:0 }
+    }
+
+    /* Character & position info bottom-right */
+    #hud-br {
+      position:absolute; bottom:20px; right:20px;
+      background:rgba(6,8,16,0.88); border:1px solid rgba(255,255,255,0.06);
+      padding:10px 16px; text-align:right;
+    }
+    #char-name  { font-size:14px; font-weight:700; font-family:'Rajdhani',sans-serif; letter-spacing:2px; }
+    #char-role  { font-size:9px; color:#666; letter-spacing:2px; }
+    #ping-val   { font-size:9px; color:#444; margin-top:6px; }
+
+    /* Reload bar */
+    #reload-wrap {
+      position:absolute; bottom:90px; left:50%; transform:translateX(-50%);
+      display:none; flex-direction:column; align-items:center; gap:4px;
+    }
+    #reload-lbl  { font-size:10px; color:var(--c2); letter-spacing:2px; }
+    #reload-outer{ width:160px; height:5px; background:#0a0c18; border:1px solid #1a2040; }
+    #reload-inner{ height:100%; width:0%; background:var(--c2); transition:width .05s; }
+
+    /* Death screen */
+    #death-screen {
+      display:none; position:fixed; inset:0;
+      background:radial-gradient(ellipse at center, rgba(180,0,0,0.25), rgba(0,0,0,0.6));
+      z-index:25; align-items:center; justify-content:center; flex-direction:column; gap:12px;
+    }
+    #death-screen.vis { display:flex; }
+    #death-screen h2  { font-size:clamp(24px,5vw,44px); font-weight:700; color:#ff1744; letter-spacing:6px; text-shadow:0 0 40px #ff1744; font-family:'Rajdhani',sans-serif; }
+    #death-screen p   { font-size:12px; color:#888; letter-spacing:3px; font-family:'Share Tech Mono',monospace; }
+    #respawn-cd       { font-size:clamp(36px,8vw,64px); color:var(--c2); font-family:'Rajdhani',sans-serif; font-weight:700; }
+
+    /* Game over */
+    #game-over {
+      display:none; position:fixed; inset:0;
+      background:rgba(0,0,0,0.92); z-index:50;
+      align-items:center; justify-content:center; flex-direction:column; gap:20px;
+    }
+    #game-over.vis { display:flex; }
+    #go-title { font-size:clamp(28px,6vw,56px); font-weight:700; letter-spacing:8px; font-family:'Rajdhani',sans-serif; text-shadow:0 0 40px currentColor; }
+    #go-sub   { font-size:13px; color:#666; letter-spacing:4px; font-family:'Share Tech Mono',monospace; }
+    #btn-new  {
+      background:linear-gradient(135deg,var(--c1),#0088aa); color:#000; border:none;
+      font-family:'Rajdhani',sans-serif; font-weight:700; font-size:16px;
+      padding:13px 40px; cursor:pointer; letter-spacing:3px; pointer-events:all;
+      clip-path:polygon(10px 0%,100% 0%,calc(100% - 10px) 100%,0% 100%);
+      transition:all .15s;
+    }
+    #btn-new:hover { background:linear-gradient(135deg,var(--c2),#aa3300); }
+
+    /* Pointer lock overlay */
+    #click-to-play {
+      display:none; position:fixed; inset:0; z-index:30;
+      background:rgba(0,0,0,0.75);
+      align-items:center; justify-content:center; flex-direction:column; gap:16px;
+      cursor:pointer;
+    }
+    #click-to-play.vis { display:flex; }
+    #click-to-play h2 { font-size:clamp(18px,4vw,32px); font-weight:700; letter-spacing:4px; color:var(--c1); font-family:'Rajdhani',sans-serif; }
+    #click-to-play p  { font-size:12px; color:#888; letter-spacing:2px; font-family:'Share Tech Mono',monospace; }
+
+    /* Controls legend */
+    #controls-hint {
+      position:absolute; bottom:20px; left:50%; transform:translateX(-50%);
+      font-size:9px; color:#333; letter-spacing:2px; font-family:'Share Tech Mono',monospace;
+      white-space:nowrap;
+    }
+
+    /* Damage flash */
+    #dmg-flash { position:fixed; inset:0; background:rgba(255,0,0,0); pointer-events:none; z-index:35; transition:background .05s; }
+
+    /* ─────────────────────────────────────────────────
+       MOBILE & TABLET SUPPORT
+       ─────────────────────────────────────────────────
+
+       HOW LANDSCAPE ENFORCEMENT WORKS:
+       The #rotate-overlay sits at z-index:9999 and covers
+       everything. It is shown/hidden by checkOrientation()
+       in client.js which fires on:
+         • page load
+         • window 'resize' event
+         • screen.orientation 'change' event
+       When portrait is detected (innerWidth < innerHeight),
+       the overlay blocks all interaction. The game canvas
+       and touch controls are also hidden. When landscape is
+       detected the overlay is hidden and play resumes.
+    ───────────────────────────────────────────────── */
+
+    /* ── ROTATE OVERLAY ── */
+    #rotate-overlay {
+      display: none;                   /* shown by JS when portrait */
+      position: fixed; inset: 0;
+      background: radial-gradient(ellipse at 50% 50%, #0a1628 0%, #060810 100%);
+      z-index: 9999;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 28px;
+      text-align: center;
+      padding: 32px;
+    }
+    #rotate-overlay.show { display: flex; }
+
+    .rotate-icon {
+      width: 80px; height: 80px;
+      border: 3px solid var(--c1);
+      border-radius: 16px;
+      position: relative;
+      animation: rotatePhone 2s ease-in-out infinite;
+      box-shadow: 0 0 30px rgba(0,229,255,0.4);
+    }
+    /* small "screen" rectangle inside the phone icon */
+    .rotate-icon::before {
+      content: '';
+      position: absolute;
+      inset: 10px;
+      background: rgba(0,229,255,0.15);
+      border-radius: 6px;
+    }
+    /* rotation arrow underneath */
+    .rotate-icon::after {
+      content: '↻';
+      position: absolute;
+      bottom: -32px;
+      left: 50%;
+      transform: translateX(-50%);
+      font-size: 24px;
+      color: var(--c1);
+    }
+    @keyframes rotatePhone {
+      0%,100% { transform: rotate(0deg); }
+      40%,60% { transform: rotate(90deg); }
+    }
+    #rotate-overlay h2 {
+      font-family: 'Rajdhani', sans-serif;
+      font-size: clamp(20px, 5vw, 32px);
+      font-weight: 700;
+      color: var(--c1);
+      letter-spacing: 3px;
+      margin-top: 16px;
+    }
+    #rotate-overlay p {
+      font-family: 'Share Tech Mono', monospace;
+      font-size: clamp(11px, 2.5vw, 14px);
+      color: #667;
+      letter-spacing: 2px;
+      max-width: 320px;
+      line-height: 1.6;
+    }
+
+    /* ── TOUCH CONTROLS CONTAINER ──
+       Only rendered on mobile/tablet (IS_MOBILE in client.js).
+       Hidden by default, made visible by showTouchControls().
+       Sits above the canvas but below HUD overlays like death screen.
+    ── */
+    #touch-controls {
+      display: none;                   /* shown by JS on mobile only */
+      position: fixed; inset: 0;
+      z-index: 12;
+      pointer-events: none;            /* children opt-in with pointer-events:all */
+    }
+    #touch-controls.active { display: block; }
+
+    /* ── LEFT VIRTUAL JOYSTICK ──
+       Fixed in bottom-left corner. The base is a static ring;
+       the knob moves within it based on touch delta.
+    ── */
+    #joystick-zone {
+      position: absolute;
+      bottom: 24px;
+      left: 20px;
+      width: 150px;
+      height: 150px;
+      pointer-events: all;
+      touch-action: none;
+    }
+    #joystick-base {
+      position: absolute;
+      inset: 0;
+      border-radius: 50%;
+      background: rgba(0, 229, 255, 0.06);
+      border: 2px solid rgba(0, 229, 255, 0.25);
+      box-shadow: 0 0 20px rgba(0,229,255,0.1) inset;
+    }
+    #joystick-knob {
+      position: absolute;
+      width: 58px;
+      height: 58px;
+      border-radius: 50%;
+      background: radial-gradient(circle at 35% 35%, rgba(0,229,255,0.5), rgba(0,229,255,0.2));
+      border: 2px solid rgba(0,229,255,0.7);
+      box-shadow: 0 0 14px rgba(0,229,255,0.35);
+      /* starts centered */
+      top: 50%; left: 50%;
+      transform: translate(-50%, -50%);
+      transition: none;               /* no CSS transition — JS moves it directly */
+    }
+    #joystick-label {
+      position: absolute;
+      bottom: -20px;
+      left: 50%;
+      transform: translateX(-50%);
+      font-size: 9px;
+      color: rgba(0,229,255,0.4);
+      font-family: 'Share Tech Mono', monospace;
+      letter-spacing: 2px;
+      white-space: nowrap;
+    }
+
+    /* ── RIGHT-SIDE AIM ZONE ──
+       Transparent draggable area covering the right half.
+       Touch-drag on this area rotates the camera.
+    ── */
+    #aim-zone {
+      position: absolute;
+      top: 0; right: 0;
+      width: 55%;
+      /* leave bottom 190px free for shoot/reload buttons */
+      bottom: 190px;
+      pointer-events: all;
+      touch-action: none;
+    }
+    /* visual hint — subtle right-side indicator */
+    #aim-zone::after {
+      content: 'AIM';
+      position: absolute;
+      top: 16px;
+      right: 20px;
+      font-size: 9px;
+      color: rgba(255,255,255,0.12);
+      font-family: 'Share Tech Mono', monospace;
+      letter-spacing: 3px;
+    }
+
+    /* ── SHOOT BUTTON ── */
+    #btn-shoot {
+      position: absolute;
+      bottom: 40px;
+      right: 28px;
+      width: 84px;
+      height: 84px;
+      border-radius: 50%;
+      background: radial-gradient(circle at 35% 30%, rgba(255,107,53,0.5), rgba(255,50,0,0.25));
+      border: 2.5px solid rgba(255,107,53,0.8);
+      box-shadow: 0 0 20px rgba(255,107,53,0.3);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      pointer-events: all;
+      touch-action: none;
+      -webkit-tap-highlight-color: transparent;
+      cursor: pointer;
+      transition: background 0.05s, box-shadow 0.05s;
+    }
+    #btn-shoot span {
+      font-family: 'Rajdhani', sans-serif;
+      font-weight: 700;
+      font-size: 14px;
+      color: #ff6b35;
+      letter-spacing: 1px;
+    }
+    #btn-shoot.pressed {
+      background: radial-gradient(circle at 35% 30%, rgba(255,107,53,0.85), rgba(255,50,0,0.6));
+      box-shadow: 0 0 35px rgba(255,107,53,0.7);
+    }
+
+    /* ── RELOAD BUTTON ── */
+    #btn-reload-mobile {
+      position: absolute;
+      bottom: 52px;
+      right: 130px;
+      width: 64px;
+      height: 64px;
+      border-radius: 50%;
+      background: rgba(255, 235, 59, 0.1);
+      border: 2px solid rgba(255,235,59,0.5);
+      box-shadow: 0 0 12px rgba(255,235,59,0.15);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      pointer-events: all;
+      touch-action: none;
+      -webkit-tap-highlight-color: transparent;
+      cursor: pointer;
+      flex-direction: column;
+      gap: 2px;
+      transition: background 0.08s;
+    }
+    #btn-reload-mobile span {
+      font-family: 'Rajdhani', sans-serif;
+      font-size: 11px;
+      color: #ffeb3b;
+      letter-spacing: 1px;
+      line-height: 1;
+    }
+    #btn-reload-mobile .reload-icon { font-size: 18px; line-height: 1; }
+    #btn-reload-mobile.pressed {
+      background: rgba(255,235,59,0.25);
+      box-shadow: 0 0 22px rgba(255,235,59,0.4);
+    }
+
+    /* ── JUMP BUTTON ── */
+    #btn-jump-mobile {
+      position: absolute;
+      bottom: 140px;
+      right: 28px;
+      width: 52px;
+      height: 52px;
+      border-radius: 50%;
+      background: rgba(181,255,77,0.1);
+      border: 2px solid rgba(181,255,77,0.4);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      pointer-events: all;
+      touch-action: none;
+      -webkit-tap-highlight-color: transparent;
+      cursor: pointer;
+      transition: background 0.08s;
+    }
+    #btn-jump-mobile span {
+      font-family: 'Rajdhani', sans-serif;
+      font-size: 11px;
+      color: #b5ff4d;
+      letter-spacing: 1px;
+    }
+    #btn-jump-mobile.pressed { background: rgba(181,255,77,0.25); }
+
+    /* ── MOBILE HUD ADJUSTMENTS ──
+       On small screens tuck the kill counter and scoreboard
+       closer to edges, and shrink font sizes slightly.
+    ── */
+    @media (max-width: 900px) and (orientation: landscape) {
+      /* Kill counter — stay top-left but smaller */
+      #kills-display { padding: 7px 12px; }
+      #kills-val { font-size: 24px; }
+
+      /* Scoreboard — collapse to right, narrower */
+      #scoreboard { min-width: 160px; padding: 8px 12px; }
+      #scoreboard h3 { font-size: 8px; margin-bottom: 6px; }
+      .sb-name { font-size: 9px; }
+      .sb-kills { font-size: 12px; }
+
+      /* Bottom HUD panel — pushed up above touch buttons */
+      #hud-bl { bottom: 190px; left: 180px; min-width: 160px; padding: 10px 14px; }
+      #hp-bar { width: 140px; }
+      #hp-val { font-size: 18px; }
+      #ammo-val { font-size: 22px; }
+
+      /* Bottom-right char info — tuck above buttons */
+      #hud-br { bottom: 190px; }
+
+      /* Hide desktop-only hint on mobile */
+      #controls-hint { display: none; }
+
+      /* Reload bar — push up above touch controls */
+      #reload-wrap { bottom: 200px; }
+
+      /* Crosshair stays centered — already fixed */
+    }
+
+    /* ── LOBBY MOBILE ADJUSTMENTS ── */
+    @media (max-width: 900px) and (orientation: landscape) {
+      #lobby-inner { padding: 10px 12px; }
+      .logo { font-size: clamp(22px, 5vw, 40px); letter-spacing: 6px; }
+      .logo-sub { margin-bottom: 16px; font-size: 10px; }
+      #name-input { padding: 9px 18px; margin-bottom: 14px; font-size: 14px; }
+      .char-grid { gap: 7px; margin-bottom: 14px; }
+      .char-card { padding: 8px 5px 7px; }
+      .char-swatch { width: 32px; height: 32px; margin-bottom: 6px; }
+      .char-name { font-size: 9px; }
+      .char-role { font-size: 8px; margin-bottom: 6px; }
+      #btn-play { font-size: 14px; padding: 11px 36px; }
+    }
+  </style>
+</head>
+<body>
+
+<!-- ── LOBBY ── -->
+<div id="lobby">
+  <div class="lobby-grid-bg"></div>
+  <div id="lobby-inner">
+    <div class="logo">CE STRIKE</div>
+    <div class="logo-sub">3D MULTIPLAYER TACTICAL SHOOTER</div>
+
+    <input id="name-input" type="text" placeholder="ENTER CALLSIGN" maxlength="16" autocomplete="off"/>
+
+    <div class="char-grid" id="char-grid"></div>
+
+    <button id="btn-play" disabled>▶ DEPLOY</button>
+  </div>
+</div>
+
+<!-- ── GAME ── -->
+<canvas id="cvs"></canvas>
+
+<!-- Crosshair -->
+<div id="crosshair"><div class="ch-dot"></div></div>
+
+<!-- HUD -->
+<div id="hud">
+  <div id="kills-display">
+    <div id="kills-val">0</div>
+    <div id="kills-lbl">KILLS</div>
+    <div id="kills-goal">GOAL: 15</div>
+  </div>
+
+  <div id="scoreboard">
+    <h3>◈ SCOREBOARD</h3>
+    <div id="sb-rows"></div>
+  </div>
+
+  <div id="kill-feed"></div>
+
+  <div id="hud-bl">
+    <div class="hud-lbl">HEALTH</div>
+    <div id="hp-bar"><div id="hp-fill" style="width:100%;background:#00e676"></div></div>
+    <div id="hp-val">100</div>
+
+    <div class="hud-lbl">AMMO</div>
+    <div id="ammo-val">--</div>
+    <div id="ammo-max">/ --</div>
+    <div id="weapon-name">---</div>
+  </div>
+
+  <div id="hud-br">
+    <div id="char-name">---</div>
+    <div id="char-role">---</div>
+    <div id="ping-val">PING: --</div>
+  </div>
+
+  <div id="reload-wrap">
+    <div id="reload-lbl">RELOADING</div>
+    <div id="reload-outer"><div id="reload-inner"></div></div>
+  </div>
+
+  <div id="controls-hint">WASD · MOVE &nbsp;|&nbsp; MOUSE · AIM &nbsp;|&nbsp; LMB · SHOOT &nbsp;|&nbsp; SPACE · JUMP &nbsp;|&nbsp; R · RELOAD &nbsp;|&nbsp; ESC · RELEASE MOUSE</div>
+
+  <div id="death-screen">
+    <h2>ELIMINATED</h2>
+    <p>RESPAWNING IN</p>
+    <div id="respawn-cd">3</div>
+  </div>
+</div>
+
+<!-- Click to capture mouse -->
+<div id="click-to-play" class="vis">
+  <h2>CLICK TO PLAY</h2>
+  <p>MOUSE WILL BE CAPTURED · ESC TO RELEASE</p>
+</div>
+
+<div id="game-over">
+  <div id="go-title">MATCH OVER</div>
+  <div id="go-sub" id="go-sub">---</div>
+  <button id="btn-new">▶ NEW MATCH</button>
+</div>
+
+<div id="dmg-flash"></div>
+
+<!-- ─────────────────────────────────────────────
+     ROTATE OVERLAY
+     Shown by JS when mobile device is in portrait.
+     Hidden automatically when landscape is detected.
+     z-index 9999 — sits above everything.
+───────────────────────────────────────────────── -->
+<div id="rotate-overlay">
+  <div class="rotate-icon"></div>
+  <h2>ROTATE YOUR DEVICE</h2>
+  <p>Please rotate your device to landscape mode to play CE Strike.</p>
+</div>
+
+<!-- ─────────────────────────────────────────────
+     TOUCH CONTROLS
+     Only made visible by JS on mobile/tablet.
+     Left zone: virtual joystick for movement.
+     Right zone: drag-to-aim transparent area.
+     Buttons: shoot (right), reload (mid-right), jump (above shoot).
+───────────────────────────────────────────────── -->
+<div id="touch-controls">
+  <!-- LEFT: Virtual joystick -->
+  <div id="joystick-zone">
+    <div id="joystick-base"></div>
+    <div id="joystick-knob"></div>
+    <div id="joystick-label">MOVE</div>
+  </div>
+
+  <!-- RIGHT: Transparent drag-to-aim area -->
+  <div id="aim-zone"></div>
+
+  <!-- Shoot button -->
+  <div id="btn-shoot"><span>FIRE</span></div>
+
+  <!-- Reload button -->
+  <div id="btn-reload-mobile">
+    <span class="reload-icon">↺</span>
+    <span>RELOAD</span>
+  </div>
+
+  <!-- Jump button -->
+  <div id="btn-jump-mobile"><span>JUMP</span></div>
+</div>
+
+<!-- Three.js from CDN — no build step needed -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script src="/socket.io/socket.io.js"></script>
+<script src="client.js"></script>
+</body>
+</html>
